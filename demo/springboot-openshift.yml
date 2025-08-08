@@ -1,0 +1,81 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-app-openshift
+spec:
+  selector:
+    matchLabels:
+      app: springboot-app-openshift
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: springboot-app-openshift
+    spec:
+      containers:
+        - name: springboot-app-openshift
+          image: panduass/springboot-openshift:second
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: springboot-app-openshift
+spec:
+  selector:
+    app: springboot-app-openshift
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: springboot-app-openshift
+spec:
+  to:
+    kind: Service
+    name: springboot-app-openshift
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: springboot-app-openshift
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: springboot-app-openshift
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 25
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 15
