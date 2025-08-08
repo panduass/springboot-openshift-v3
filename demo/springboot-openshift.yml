@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: springboot-app-openshift
-          image: panduass/springboot-openshift:second
+          image: panduass/springboot-openshift:v3
           ports:
             - name: http
               containerPort: 8080
