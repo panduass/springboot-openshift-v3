@@ -1,81 +1,55 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: springboot-app-openshift
+  name: java-openshift-jenkins
+  labels:
+    app: java-openshift-jenkins
 spec:
+  replicas: 2
   selector:
     matchLabels:
-      app: springboot-app-openshift
-  replicas: 1
+      app: java-openshift-jenkins
   template:
     metadata:
       labels:
-        app: springboot-app-openshift
+        app: java-openshift-jenkins
     spec:
       containers:
-        - name: springboot-app-openshift
-          image: panduass/springboot-openshift:v3
+        - name: java-openshift-jenkins-container
+          image: panduass/java-openshift-jenkins:__IMAGE_TAG__
           ports:
-            - name: http
-              containerPort: 8080
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
           resources:
             requests:
-              memory: "256Mi"
+              memory: "512Mi"
               cpu: "250m"
             limits:
-              memory: "512Mi"
+              memory: "1Gi"
               cpu: "500m"
-
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: springboot-app-openshift
+  name: java-openshift-jenkins
 spec:
   selector:
-    app: springboot-app-openshift
+    app: java-openshift-jenkins
   ports:
-    - name: http
-      port: 80
-      targetPort: http
-
+    - port: 8080
+      targetPort: 8080
 ---
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: springboot-app-openshift
+  name: java-openshift-jenkins
 spec:
   to:
     kind: Service
-    name: springboot-app-openshift
+    name: java-openshift-jenkins
   port:
-    targetPort: http
+    targetPort: 8080
   tls:
     termination: edge
-
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: springboot-app-openshift
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: springboot-app-openshift
-  minReplicas: 1
-  maxReplicas: 10
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 25
-    - type: Resource
-      resource:
-        name: memory
-        target:
-          type: Utilization
-          averageUtilization: 15

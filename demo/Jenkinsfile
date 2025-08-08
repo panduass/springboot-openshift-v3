@@ -2,12 +2,11 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "panduass/springboot-openshift:v3"
+        DOCKER_IMAGE = "panduass/java-openshift-jenkins"
         DOCKER_CREDENTIALS_ID = "docker-hub"
-        GITHUB_REPO = "https://github.com/panduass/springboot-openshift-v3"
+        GITHUB_REPO = "https://github.com/panduass/springboot-openshift-v3.git"
         OPENSHIFT_PROJECT = "panduass-dev"
         OPENSHIFT_SERVER = "https://api.rm1.0a51.p1.openshiftapps.com:6443"
-        
         OPENSHIFT_TOKEN = credentials('openshift-v3')
         WEBHOOK_URL = "https://9180f8239a25.ngrok-free.app/github-webhook/"
     }
@@ -51,12 +50,11 @@ pipeline {
         stage('Generate Deployment YAML') {
             steps {
                 script {
-                    def baseYaml = readFile('java_openshift/base-deployment.yaml')
+                    def baseYaml = readFile('demo/springboot-openshift.yml')
                     def updatedYaml = baseYaml.replaceAll(
-                        "image:\\s+panduass/spring-openshift:latest",
-                        "image: ${DOCKER_IMAGE}:${env.DOCKER_TAG}"
+                        "__IMAGE_TAG__", env.DOCKER_TAG
                     )
-                    writeFile file: 'deployment.yaml', text: updatedYaml
+                    writeFile file: 'deployment.yml', text: updatedYaml
                     echo "YAML updated with image tag: ${env.DOCKER_TAG}"
                 }
             }
@@ -78,7 +76,7 @@ pipeline {
     post {
         success {
             script {
-                def route = sh(script: "oc get route springboot-app -o jsonpath='{.spec.host}'", returnStdout: true).trim()
+                def route = sh(script: "oc get route java-openshift-jenkins -o jsonpath='{.spec.host}'", returnStdout: true).trim()
                 def routeUrl = "http://${route}"
                 echo "Deployment successful! Access your app at: ${routeUrl}"
             }
@@ -88,7 +86,7 @@ pipeline {
             script {
                 def payload = """
                 {
-                  "text": "Jenkins deployment failed for *springboot-app* in build #${env.BUILD_NUMBER}",
+                  "text": "Jenkins deployment failed for *java-openshift-jenkins* in build #${env.BUILD_NUMBER}",
                   "attachments": [
                     {
                       "color": "danger",
