@@ -70,7 +70,7 @@ pipeline {
                 script {
                     echo 'Deploying to OpenShift using direct `oc` commands...'
                     // Gunakan 'secretText' untuk token OpenShift
-                    withCredentials([string(credentialsId: 'openshift-token', variable: 'OC_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'openshift-v3', variable: 'OC_TOKEN')]) {
                         // 1. Login ke OpenShift menggunakan token
                         sh "oc login --token=${OC_TOKEN} --server=${OC_SERVER} --insecure-skip-tls-verify=true"
                         sh "oc project ${OC_PROJECT}"
