@@ -1,13 +1,5 @@
 pipeline {
-    agent {
-        // Sintaks yang benar:
-        // Letakkan tipe agent ('any') di dalam blok agent
-        // bersama dengan opsi lain seperti 'tools'
-        any
-        tools {
-            jdk 'JDK 21' 
-        }
-    }
+    agent any
 
     environment {
         // Informasi Docker
@@ -34,6 +26,10 @@ pipeline {
         }
 
         stage('Build & Package') {
+            tools {
+                // Menggunakan JDK 21 yang sudah dikonfigurasi hanya untuk stage ini
+                jdk 'JDK 21' 
+            }
             steps {
                 echo 'Melakukan Build dan Packaging dengan Maven...'
                 dir('demo') {
