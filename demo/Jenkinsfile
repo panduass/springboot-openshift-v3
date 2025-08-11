@@ -8,7 +8,7 @@ pipeline {
         
         // Informasi GitHub
         GITHUB_REPO = "https://github.com/panduass/springboot-openshift-v3/"
-        GITHUB_BRANCH = "main"
+        GITHUB_BRANCH = "master"
 
         // Informasi OpenShift
         OPENSHIFT_SERVER = "https://api.rm1.0a51.p1.openshiftapps.com:6443"
@@ -26,11 +26,28 @@ pipeline {
         }
 
         stage('Build & Package') {
-            tools {
-                // Menggunakan JDK 21 yang sudah dikonfigurasi hanya untuk stage ini
-                jdk 'JDK-21' 
-            }
             steps {
+                script {
+                    // Ambil JDK-21 dari konfigurasi Jenkins Tools
+                    def javaHome = tool name: 'JDK-21', type: 'hudson.model.JDK'
+                    env.JAVA_HOME = javaHome
+                    env.PATH = "${javaHome}/bin:${env.PATH}"
+
+                    // Tampilkan versi Java & Maven
+                    echo "Menggunakan JAVA_HOME=${env.JAVA_HOME}"
+                    sh 'java -version'
+                    sh 'mvn -v'
+
+                    // Fail cepat kalau bukan Java 21
+                    sh '''
+                        JAVA_VER=$(java -version 2>&1 | head -n 1 | grep '21')
+                        if [ -z "$JAVA_VER" ]; then
+                            echo "ERROR: Java bukan versi 21!"
+                            exit 1
+                        fi
+                    '''
+                }
+
                 echo 'Melakukan Build dan Packaging dengan Maven...'
                 dir('demo') {
                     sh 'mvn clean package -DskipTests'
