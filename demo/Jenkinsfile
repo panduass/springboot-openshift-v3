@@ -2,36 +2,44 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "panduass/java-openshift-jenkins"
+        // Informasi Docker
+        DOCKER_IMAGE = "panduass/springboot-openshift-demo"
         DOCKER_CREDENTIALS_ID = "docker-hub"
-        GITHUB_REPO = "https://github.com/panduass/springboot-openshift-v3.git"
-        OPENSHIFT_PROJECT = "panduass-dev"
+        
+        // Informasi GitHub
+        GITHUB_REPO = "https://github.com/panduass/springboot-openshift-v3/"
+        GITHUB_BRANCH = "main" // Atau 'master' tergantung repo Anda
+
+        // Informasi OpenShift
         OPENSHIFT_SERVER = "https://api.rm1.0a51.p1.openshiftapps.com:6443"
-        OPENSHIFT_TOKEN = credentials('openshift-v3')
-        WEBHOOK_URL = "https://9180f8239a25.ngrok-free.app/github-webhook/"
+        OPENSHIFT_PROJECT = "panduass-dev"
+        OPENSHIFT_CREDENTIALS_ID = "openshift-v3"
+        OC_APP_NAME = "springboot-openshift-demo"
     }
 
     stages {
-        stage('Clone GitHub Repo') {
+        stage('Checkout') {
             steps {
-                git url: "${env.GITHUB_REPO}", branch: 'master'
+                echo 'Cloning from GitHub...'
+                git url: "${env.GITHUB_REPO}", branch: "${env.GITHUB_BRANCH}"
             }
         }
 
-        stage('Set Docker Tag') {
+        stage('Build & Package') {
             steps {
-                script {
-                    env.DOCKER_TAG = "v${env.BUILD_NUMBER}"
-                    echo " Docker tag: ${env.DOCKER_TAG}"
-                }
+                echo 'Building and packaging with Maven...'
+                // Asumsi pom.xml ada di root directory
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
+                    env.DOCKER_TAG = "v${env.BUILD_NUMBER}"
                     echo "Building Docker image: ${DOCKER_IMAGE}:${env.DOCKER_TAG}"
-                    docker.build("${DOCKER_IMAGE}:${env.DOCKER_TAG}", "-f java_openshift/Dockerfile java_openshift")
+                    // Asumsi Dockerfile ada di root directory
+                    docker.build("${DOCKER_IMAGE}:${env.DOCKER_TAG}")
                 }
             }
         }
@@ -47,27 +55,27 @@ pipeline {
             }
         }
 
-        stage('Generate Deployment YAML') {
+        stage('Deploy to OpenShift') {
             steps {
                 script {
-                    def baseYaml = readFile('demo/springboot-openshift.yml')
-                    def updatedYaml = baseYaml.replaceAll(
-                        "__IMAGE_TAG__", env.DOCKER_TAG
-                    )
-                    writeFile file: 'deployment.yml', text: updatedYaml
-                    echo "YAML updated with image tag: ${env.DOCKER_TAG}"
-                }
-            }
-        }
+                    withCredentials([string(credentialsId: "${OPENSHIFT_CREDENTIALS_ID}", variable: 'OC_TOKEN')]) {
+                        echo "Logging into OpenShift..."
+                        sh "oc login --token=${OC_TOKEN} --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify=true"
+                        sh "oc project ${OPENSHIFT_PROJECT}"
 
-        stage('Apply to OpenShift') {
-            steps {
-                script {
-                    sh """
-                    oc login ${OPENSHIFT_SERVER} --token=${OPENSHIFT_TOKEN} --insecure-skip-tls-verify
-                    oc project ${OPENSHIFT_PROJECT}
-                    oc apply -f deployment.yaml
-                    """
+                        echo "Checking for existing deployment..."
+                        // Cek apakah DeploymentConfig sudah ada, jika belum, buat baru
+                        def deploymentExists = sh(script: "oc get dc ${OC_APP_NAME} > /dev/null 2>&1 || [ \$? -eq 1 ]", returnStatus: true) == 0
+                        if (deploymentExists) {
+                            echo "DeploymentConfig ${OC_APP_NAME} exists, updating image..."
+                            sh "oc set image dc/${OC_APP_NAME} ${OC_APP_NAME}=${DOCKER_IMAGE}:${env.DOCKER_TAG}"
+                        } else {
+                            echo "DeploymentConfig ${OC_APP_NAME} not found, creating new application..."
+                            sh "oc new-app --image=${DOCKER_IMAGE}:${env.DOCKER_TAG} --name=${OC_APP_NAME}"
+                            sh "oc expose service ${OC_APP_NAME} --port=8080"
+                            sh "oc expose route ${OC_APP_NAME}"
+                        }
+                    }
                 }
             }
         }
@@ -75,31 +83,10 @@ pipeline {
 
     post {
         success {
-            script {
-                def route = sh(script: "oc get route java-openshift-jenkins -o jsonpath='{.spec.host}'", returnStdout: true).trim()
-                def routeUrl = "http://${route}"
-                echo "Deployment successful! Access your app at: ${routeUrl}"
-            }
+            echo "CI/CD Pipeline finished successfully. Application is deployed!"
         }
-
         failure {
-            script {
-                def payload = """
-                {
-                  "text": "Jenkins deployment failed for *java-openshift-jenkins* in build #${env.BUILD_NUMBER}",
-                  "attachments": [
-                    {
-                      "color": "danger",
-                      "title": "Job: ${env.JOB_NAME}",
-                      "title_link": "${env.BUILD_URL}",
-                      "text": "Check the Jenkins logs for more details."
-                    }
-                  ]
-                }
-                """
-                writeFile file: 'alert-payload.json', text: payload
-                sh "curl -X POST -H 'Content-type: application/json' --data @alert-payload.json ${env.WEBHOOK_URL}"
-            }
+            echo "CI/CD Pipeline failed. Check the logs for details."
         }
     }
 }
