@@ -1,5 +1,11 @@
 pipeline {
-    agent any
+    agent {
+        // Menggunakan JDK 21 yang sudah dikonfigurasi di Jenkins
+        tools {
+            jdk 'JDK 21' 
+        }
+        any
+    }
 
     environment {
         // Informasi Docker
@@ -8,7 +14,7 @@ pipeline {
         
         // Informasi GitHub
         GITHUB_REPO = "https://github.com/panduass/springboot-openshift-v3/"
-        GITHUB_BRANCH = "main" // Atau 'master' tergantung repo Anda
+        GITHUB_BRANCH = "main"
 
         // Informasi OpenShift
         OPENSHIFT_SERVER = "https://api.rm1.0a51.p1.openshiftapps.com:6443"
@@ -28,7 +34,6 @@ pipeline {
         stage('Build & Package') {
             steps {
                 echo 'Melakukan Build dan Packaging dengan Maven...'
-                // Asumsi pom.xml ada di subdirectory 'demo'
                 dir('demo') {
                     sh 'mvn clean package -DskipTests'
                 }
@@ -40,7 +45,6 @@ pipeline {
                 script {
                     env.DOCKER_TAG = "v${env.BUILD_NUMBER}"
                     echo "Membangun Docker image: ${DOCKER_IMAGE}:${env.DOCKER_TAG}"
-                    // Asumsi Dockerfile ada di subdirectory 'demo'
                     dir('demo') {
                         docker.build("${DOCKER_IMAGE}:${env.DOCKER_TAG}")
                     }
@@ -68,7 +72,6 @@ pipeline {
                         sh "oc project ${OPENSHIFT_PROJECT}"
 
                         echo "Memeriksa deployment yang sudah ada..."
-                        // Cek apakah DeploymentConfig sudah ada, jika belum, buat baru
                         def deploymentExists = sh(script: "oc get dc ${OC_APP_NAME} > /dev/null 2>&1 || [ \$? -eq 1 ]", returnStatus: true) == 0
                         if (deploymentExists) {
                             echo "DeploymentConfig ${OC_APP_NAME} sudah ada, memperbarui image..."
