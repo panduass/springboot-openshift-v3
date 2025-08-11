@@ -1,10 +1,12 @@
 pipeline {
     agent {
-        // Menggunakan JDK 21 yang sudah dikonfigurasi di Jenkins
+        // Sintaks yang benar:
+        // Letakkan tipe agent ('any') di dalam blok agent
+        // bersama dengan opsi lain seperti 'tools'
+        any
         tools {
             jdk 'JDK 21' 
         }
-        any
     }
 
     environment {
