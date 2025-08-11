@@ -28,7 +28,7 @@ pipeline {
         stage('Build & Package') {
             tools {
                 // Menggunakan JDK 21 yang sudah dikonfigurasi hanya untuk stage ini
-                jdk 'JDK 21' 
+                jdk 'JDK-21' 
             }
             steps {
                 echo 'Melakukan Build dan Packaging dengan Maven...'
