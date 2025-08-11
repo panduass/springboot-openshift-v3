@@ -20,16 +20,18 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Cloning from GitHub...'
+                echo 'Cloning dari GitHub...'
                 git url: "${env.GITHUB_REPO}", branch: "${env.GITHUB_BRANCH}"
             }
         }
 
         stage('Build & Package') {
             steps {
-                echo 'Building and packaging with Maven...'
-                // Asumsi pom.xml ada di root directory
-                sh 'mvn clean package -DskipTests'
+                echo 'Melakukan Build dan Packaging dengan Maven...'
+                // Asumsi pom.xml ada di subdirectory 'demo'
+                dir('demo') {
+                    sh 'mvn clean package -DskipTests'
+                }
             }
         }
 
@@ -37,9 +39,11 @@ pipeline {
             steps {
                 script {
                     env.DOCKER_TAG = "v${env.BUILD_NUMBER}"
-                    echo "Building Docker image: ${DOCKER_IMAGE}:${env.DOCKER_TAG}"
-                    // Asumsi Dockerfile ada di root directory
-                    docker.build("${DOCKER_IMAGE}:${env.DOCKER_TAG}")
+                    echo "Membangun Docker image: ${DOCKER_IMAGE}:${env.DOCKER_TAG}"
+                    // Asumsi Dockerfile ada di subdirectory 'demo'
+                    dir('demo') {
+                        docker.build("${DOCKER_IMAGE}:${env.DOCKER_TAG}")
+                    }
                 }
             }
         }
@@ -47,7 +51,7 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
-                    echo "Pushing Docker image to Docker Hub"
+                    echo "Mendorong Docker image ke Docker Hub"
                     docker.withRegistry('', "${DOCKER_CREDENTIALS_ID}") {
                         docker.image("${DOCKER_IMAGE}:${env.DOCKER_TAG}").push()
                     }
@@ -55,22 +59,22 @@ pipeline {
             }
         }
 
-        stage('Deploy to OpenShift') {
+        stage('Deploy ke OpenShift') {
             steps {
                 script {
                     withCredentials([string(credentialsId: "${OPENSHIFT_CREDENTIALS_ID}", variable: 'OC_TOKEN')]) {
-                        echo "Logging into OpenShift..."
+                        echo "Masuk ke OpenShift..."
                         sh "oc login --token=${OC_TOKEN} --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify=true"
                         sh "oc project ${OPENSHIFT_PROJECT}"
 
-                        echo "Checking for existing deployment..."
+                        echo "Memeriksa deployment yang sudah ada..."
                         // Cek apakah DeploymentConfig sudah ada, jika belum, buat baru
                         def deploymentExists = sh(script: "oc get dc ${OC_APP_NAME} > /dev/null 2>&1 || [ \$? -eq 1 ]", returnStatus: true) == 0
                         if (deploymentExists) {
-                            echo "DeploymentConfig ${OC_APP_NAME} exists, updating image..."
+                            echo "DeploymentConfig ${OC_APP_NAME} sudah ada, memperbarui image..."
                             sh "oc set image dc/${OC_APP_NAME} ${OC_APP_NAME}=${DOCKER_IMAGE}:${env.DOCKER_TAG}"
                         } else {
-                            echo "DeploymentConfig ${OC_APP_NAME} not found, creating new application..."
+                            echo "DeploymentConfig ${OC_APP_NAME} tidak ditemukan, membuat aplikasi baru..."
                             sh "oc new-app --image=${DOCKER_IMAGE}:${env.DOCKER_TAG} --name=${OC_APP_NAME}"
                             sh "oc expose service ${OC_APP_NAME} --port=8080"
                             sh "oc expose route ${OC_APP_NAME}"
@@ -83,10 +87,10 @@ pipeline {
 
     post {
         success {
-            echo "CI/CD Pipeline finished successfully. Application is deployed!"
+            echo "CI/CD Pipeline berhasil diselesaikan. Aplikasi telah di-deploy!"
         }
         failure {
-            echo "CI/CD Pipeline failed. Check the logs for details."
+            echo "CI/CD Pipeline gagal. Periksa log untuk detail."
         }
     }
 }
